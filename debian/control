@@ -9,5 +9,5 @@ Homepage: https://minios.dev
 Package: libminioslive
 Architecture: all
 Depends: ${misc:Depends}
-Description: Library for MiniOS Linux scripts..
+Description: Library for MiniOS Linux scripts.
  libminioslive contains functions used by various MiniOS Linux utilities.

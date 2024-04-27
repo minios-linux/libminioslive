@@ -218,6 +218,151 @@ read_config_value() {
     fi
 }
 
+# A function for parsing command line input from kernel parameters.
+# Usage:
+#   read_cmdline /proc/cmdline
+read_cmdline() {
+    for i in "${@}"; do
+        case $i in
+        user_name=*)
+            USER_NAME="${i#*=}"
+            shift
+            ;;
+        user_password=*)
+            USER_PASSWORD="${i#*=}"
+            shift
+            ;;
+        root_password=*)
+            ROOT_PASSWORD="${i#*=}"
+            shift
+            ;;
+        host_name=*)
+            HOST_NAME="${i#*=}"
+            shift
+            ;;
+        default_target=*)
+            DEFAULT_TARGET="${i#*=}"
+            shift
+            ;;
+        text)
+            TEXT_MODE="true"
+            shift
+            ;;
+        enable_services=*)
+            ENABLE_SERVICES="${i#*=}"
+            shift
+            ;;
+        disable_services=*)
+            DISABLE_SERVICES="${i#*=}"
+            shift
+            ;;
+        ssh_key=*)
+            SSH_KEY="${i#*=}"
+            shift
+            ;;
+        ${LIVEKITNAME}.flags=*)
+            FLAGS="${i#*=}"
+            shift
+            ;;
+        slax.flags=*)
+            SFLAGS="${i#*=}"
+            shift
+            ;;
+        toram)
+            TORAM="true"
+            shift
+            ;;
+        perchdir=*)
+            PERCHDIR="${i#*=}"
+            shift
+            ;;
+        scripts=*)
+            SCRIPTS="${i#*=}"
+            shift
+            ;;
+        cloud)
+            CLOUD="true"
+            shift
+            ;;
+        hide_credentials)
+            HIDE_CREDENTIALS="true"
+            shift
+            ;;
+        static_profiles)
+            STATIC_PROFILES="true"
+            shift
+            ;;
+        autologin=*)
+            AUTOLOGIN="${i#*=}"
+            shift
+            ;;
+        system_type=*)
+            SYSTEM_TYPE="${i#*=}"
+            shift
+            ;;
+        from=*)
+            FROM="${i#*=}"
+            shift
+            ;;
+        *)
+            UNKNOWN="true"
+            ;;
+        esac
+    done
+}
+
+# This function sets up a new system user if no existing configuration is found.
+user_setup() {
+    local USER_NAME=$1 # Assign the first argument to local variable USER_NAME
+    echo "User name is ${USER_NAME}"
+    # Check if the system has been configured before
+    if [ ! -f /var/.system_configured ]; then
+        adduser --uid 1000 --gecos '' "${USER_NAME}" --disabled-password # Create a new user with UID 1000 and no password
+    fi
+}
+
+# This function modifies user configurations by copying default system files to the user's home directory.
+user_modifications() {
+    local USER_NAME=$1                    # Assign the first argument to local variable USER_NAME
+    cp -rT /etc/skel "/home/${USER_NAME}" # Copy the contents of the /etc/skel directory to the user's home directory
+}
+
+# This function allows changing the username and user group. It is useful when the username needs to be changed without affecting the user's files.
+change_user() {
+    local USER_NAME=$1                                                                     # Assign the first argument to local variable USER_NAME
+    local USER_GROUP="${USER_NAME}"                                                        # Assign the username to local variable USER_GROUP
+    local CURRENT_USER_NAME=$2                                                             # Assign the second argument to local variable CURRENT_USER_NAME
+    local CURRENT_USER_GROUP=$3                                                            # Assign the third argument to local variable CURRENT_USER_GROUP
+    if [ -n "${CURRENT_USER_NAME}" ] && [ "${USER_NAME}" != "${CURRENT_USER_NAME}" ]; then # If the current username is not empty and different from the new username
+        usermod -l "${USER_NAME}" "${CURRENT_USER_NAME}"                                   # Change the username
+        usermod -m -d "/home/${USER_NAME}" "${USER_NAME}"                                  # Move the user's home directory to the new location
+        groupmod -n "${USER_GROUP}" "${CURRENT_USER_GROUP}"                                # Change the user group name
+    fi
+}
+
+# This function creates user directories, such as Desktop, Documents, Downloads, and checks for .ssh directory. If .ssh directory or authorized_keys file doesn't exist, it creates them.
+create_user_dirs() {
+    local USER_NAME=$1                   # Assign the first argument to local variable USER_NAME
+    if [ -d "/home/${USER_NAME}" ]; then # If user's home directory exists
+        # Create required directories if they do not exist
+        for DIR in Desktop Documents Downloads Music Pictures Public Templates Videos; do
+            mkdir -p "/home/${USER_NAME}/${DIR}"
+        done
+        if [ ! -d "/home/${USER_NAME}/.ssh" ]; then # If .ssh directory does not exist
+            mkdir "/home/${USER_NAME}/.ssh"         # Create .ssh directory
+            chmod 700 "/home/${USER_NAME}/.ssh"     # Set appropriate permissions for .ssh directory
+        fi
+        if [ -f /root/.ssh/authorized_keys ]; then                                  # Check if authorized_keys file exists
+            cp /root/.ssh/authorized_keys "/home/${USER_NAME}/.ssh/authorized_keys" # Copy authorized_keys file to user's .ssh directory
+        fi
+        USER_ID=$(id -u "${USER_NAME}")  # Get user ID
+        GROUP_ID=$(id -g "${USER_NAME}") # Get group ID
+        # Set ownership of the user's home directory to the user and user group
+        chown ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
+        chown -R ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
+    fi
+}
+
 # only allow 'root' to run the script
 allow_root_only() {
     if [ $(id -u) -ne 0 ]; then
