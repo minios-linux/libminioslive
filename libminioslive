@@ -435,13 +435,43 @@ toggle_shell_options() {
     done
 }
 
-# Display an error message and exit the program.
+# Display an error message.
 error() {
-    toggle_shell_options u
-    local MESSAGE="${1}"
+    local MESSAGE="${1-}"
+    echo -e "${BOLD}${RED}E:${ENDCOLOR} ${MESSAGE}" >&2
+}
 
-    echo -e "${BOLD}${RED}Error:${ENDCOLOR} ${MESSAGE}" >&2
-    toggle_shell_options u
+# Display a warning message.
+warning() {
+    local MESSAGE="${1-}"
+    echo -e "${BOLD}${YELLOW}W:${ENDCOLOR} ${MESSAGE}"
+}
+
+# Display an information message.
+information() {
+    local MESSAGE="${1-}"
+    echo -e "${BOLD}${BLUE}I:${ENDCOLOR} ${MESSAGE}"
+}
+
+declare_locales() {
+    # LOCALES is an associative array where each key-value pair is a locale with its related configurations.
+    # Key: Locale code (e.g., "en_US" for American English)
+    # Value: A comma-separated string that defines the following:
+    #   1. Keyboard layout code (e.g., "us" for U.S. layout)
+    #   2. Keyboard layout name (e.g., "English (US)")
+    #   3. Firefox locale name in Debian
+    #   4. Firefox locale name in Ubuntu (Mozilla repository)
+    #   5. LibreOffice locale name in Debian and in Ubuntu
+    #   6. LibreOffice LC_MESSAGES
+    declare -Ag LOCALES=(
+        ["de_DE"]="de,German,de,de,de,de"
+        ["en_US"]="us,English (US),,en,,"
+        ["es_ES"]="es,Spanish,es-es,es,es,es"
+        ["fr_FR"]="fr,French,fr,fr,fr,fr"
+        ["it_IT"]="it,Italian,it,it,it,it"
+        ["pt_BR"]="br,Portuguese (Brazil),pt-br,pt,pt-br,br"
+        ["ru_RU"]="ru,Russian,ru,ru,ru,ru"
+    )
 }
 
 #------- LIBMINIOSLIVE -------
