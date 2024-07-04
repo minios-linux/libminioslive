@@ -292,8 +292,12 @@ read_cmdline() {
             STATIC_PROFILES="true"
             shift
             ;;
-        autologin=*)
-            AUTOLOGIN="${i#*=}"
+        autologin)
+            AUTOLOGIN="true"
+            shift
+            ;;
+        link_user_dirs)
+            LINK_USER_DIRS="true"
             shift
             ;;
         system_type=*)
@@ -311,20 +315,161 @@ read_cmdline() {
     done
 }
 
-# This function sets up a new system user if no existing configuration is found.
-user_setup() {
-    local USER_NAME=$1 # Assign the first argument to local variable USER_NAME
-    echo "User name is ${USER_NAME}"
-    # Check if the system has been configured before
-    if [ ! -f /var/.system_configured ]; then
-        adduser --uid 1000 --gecos '' "${USER_NAME}" --disabled-password # Create a new user with UID 1000 and no password
-    fi
+# Function to determine filesystem type of a given directory
+get_filesystem_type() {
+    local DEVICE=$(df "$1" | awk 'NR==2 {print $1}')
+    local FS_TYPE=$(blkid -o value -s TYPE "$DEVICE")
+    echo "${FS_TYPE}"
 }
 
-# This function modifies user configurations by copying default system files to the user's home directory.
-user_modifications() {
-    local USER_NAME=$1                    # Assign the first argument to local variable USER_NAME
-    cp -rT /etc/skel "/home/${USER_NAME}" # Copy the contents of the /etc/skel directory to the user's home directory
+# Returns the mount point of the disk containing the given directory
+get_mount_point() {
+    local MOUNT_POINT=$(df "$1" | awk 'NR==2 {print $6}')
+    echo "${MOUNT_POINT}"
+}
+
+# This function sets up a new system user, creates user directories,
+# optionally creates symbolic links to shared directories, and configures
+# necessary permissions and files such as .ssh/authorized_keys.
+# Arguments:
+#   1. USER_NAME: The name of the user to set up.
+#   2. TARGET_DIR: The target directory where user directories will be linked.
+#   3. LINK_USER_DIRS: A flag to determine if user directories should be linked (true/false).
+#   4. WRITABLE: A flag to determine if the target directories should be writable (true/false).
+user_setup() {
+    local USER_NAME="$1"
+    local MEDIA="$2"
+    local LINK_USER_DIRS="${3:-false}"
+    local WRITABLE="${4:-false}"
+
+    local FS_TYPE=$(get_filesystem_type "${MEDIA}")
+    local TARGET_DIR=$(get_mount_point "${MEDIA}")
+
+    echo "Setting up user: ${USER_NAME}"
+    echo "Target directory: ${TARGET_DIR}"
+    echo "Link user directories: ${LINK_USER_DIRS}"
+    echo "Writable target directories: ${WRITABLE}"
+    echo "Filesystem type: ${FS_TYPE}"
+
+    if [ ! -f /var/.system_configured ]; then
+        echo "Creating new user ${USER_NAME}"
+        adduser --uid 1000 --gecos '' "${USER_NAME}" --disabled-password
+    else
+        echo "System already configured, skipping user creation"
+    fi
+
+    USER_ID=$(id -u "${USER_NAME}")
+    GROUP_ID=$(id -g "${USER_NAME}")
+
+    echo "Copying skeleton files to /home/${USER_NAME}"
+    cp -rT /etc/skel "/home/${USER_NAME}"
+
+    if [ -d "/home/${USER_NAME}" ]; then
+        if [ "${LINK_USER_DIRS}" = "true" ] && [ "${WRITABLE}" = "true" ] && ([ "${FS_TYPE}" = "vfat" ] || [ "${FS_TYPE}" = "ntfs" ] || [ "${FS_TYPE}" = "exfat" ]); then
+            chmod 777 "${TARGET_DIR}"
+            echo "Creating user directories without symbolic links"
+            for DIR in Desktop Public Templates; do
+                TARGET_DIR_PATH="/home/${USER_NAME}/${DIR}"
+
+                if [ ! -d "${TARGET_DIR_PATH}" ]; then
+                    echo "Creating directory: ${TARGET_DIR_PATH}"
+                    mkdir -p "${TARGET_DIR_PATH}"
+                fi
+            done
+            echo "Linking user directories and ensuring writable target directories"
+            for DIR in Documents Downloads Music Pictures Videos; do
+                TARGET_DIR_PATH="${TARGET_DIR}/${DIR}"
+
+                if [ ! -d "${TARGET_DIR_PATH}" ]; then
+                    echo "Creating target directory: ${TARGET_DIR_PATH}"
+                    mkdir -p "${TARGET_DIR_PATH}"
+                fi
+
+                if [ ! -L "/home/${USER_NAME}/${DIR}" ]; then
+                    echo "Creating symbolic link: /home/${USER_NAME}/${DIR} -> ${TARGET_DIR_PATH}"
+                    ln -s "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
+                fi
+
+                DESKTOP_INI="${TARGET_DIR_PATH}/desktop.ini"
+                if [ ! -f "${DESKTOP_INI}" ]; then
+                    echo "Creating desktop.ini for ${DIR}"
+                    case "${DIR}" in
+                    "Desktop")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-183" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21798" >>"${DESKTOP_INI}"
+                        ;;
+                    "Documents")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-112" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-23509" >>"${DESKTOP_INI}"
+                        ;;
+                    "Downloads")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-184" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21796" >>"${DESKTOP_INI}"
+                        ;;
+                    "Music")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-108" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21790" >>"${DESKTOP_INI}"
+                        ;;
+                    "Pictures")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-113" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21779" >>"${DESKTOP_INI}"
+                        ;;
+                    "Public")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-104" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21792" >>"${DESKTOP_INI}"
+                        ;;
+                    "Templates")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-107" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21801" >>"${DESKTOP_INI}"
+                        ;;
+                    "Videos")
+                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
+                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-189" >>"${DESKTOP_INI}"
+                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21793" >>"${DESKTOP_INI}"
+                        ;;
+                    esac
+
+                    if [ "${FS_TYPE}" = "ntfs" ]; then
+                        echo "Setting attributes for desktop.ini on NTFS filesystem"
+                        attrib +h +s "${DESKTOP_INI}"
+                    fi
+                fi
+            done
+        else
+            echo "Creating user directories without symbolic links"
+            for DIR in Desktop Documents Downloads Music Pictures Public Templates Videos; do
+                TARGET_DIR_PATH="/home/${USER_NAME}/${DIR}"
+
+                if [ ! -d "${TARGET_DIR_PATH}" ]; then
+                    echo "Creating directory: ${TARGET_DIR_PATH}"
+                    mkdir -p "${TARGET_DIR_PATH}"
+                fi
+            done
+        fi
+
+        if [ ! -d "/home/${USER_NAME}/.ssh" ]; then
+            echo "Creating .ssh directory"
+            mkdir "/home/${USER_NAME}/.ssh"
+            chmod 700 "/home/${USER_NAME}/.ssh"
+        fi
+
+        if [ -f /root/.ssh/authorized_keys ]; then
+            echo "Copying authorized_keys to user's .ssh directory"
+            cp /root/.ssh/authorized_keys "/home/${USER_NAME}/.ssh/authorized_keys"
+        fi
+
+        echo "Setting ownership for /home/${USER_NAME}"
+        chown ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
+        echo "Setting ownership recursively for /home/${USER_NAME}"
+        chown -R ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
+    fi
 }
 
 # This function allows changing the username and user group. It is useful when the username needs to be changed without affecting the user's files.
@@ -337,29 +482,6 @@ change_user() {
         usermod -l "${USER_NAME}" "${CURRENT_USER_NAME}"                                   # Change the username
         usermod -m -d "/home/${USER_NAME}" "${USER_NAME}"                                  # Move the user's home directory to the new location
         groupmod -n "${USER_GROUP}" "${CURRENT_USER_GROUP}"                                # Change the user group name
-    fi
-}
-
-# This function creates user directories, such as Desktop, Documents, Downloads, and checks for .ssh directory. If .ssh directory or authorized_keys file doesn't exist, it creates them.
-create_user_dirs() {
-    local USER_NAME=$1                   # Assign the first argument to local variable USER_NAME
-    if [ -d "/home/${USER_NAME}" ]; then # If user's home directory exists
-        # Create required directories if they do not exist
-        for DIR in Desktop Documents Downloads Music Pictures Public Templates Videos; do
-            mkdir -p "/home/${USER_NAME}/${DIR}"
-        done
-        if [ ! -d "/home/${USER_NAME}/.ssh" ]; then # If .ssh directory does not exist
-            mkdir "/home/${USER_NAME}/.ssh"         # Create .ssh directory
-            chmod 700 "/home/${USER_NAME}/.ssh"     # Set appropriate permissions for .ssh directory
-        fi
-        if [ -f /root/.ssh/authorized_keys ]; then                                  # Check if authorized_keys file exists
-            cp /root/.ssh/authorized_keys "/home/${USER_NAME}/.ssh/authorized_keys" # Copy authorized_keys file to user's .ssh directory
-        fi
-        USER_ID=$(id -u "${USER_NAME}")  # Get user ID
-        GROUP_ID=$(id -g "${USER_NAME}") # Get group ID
-        # Set ownership of the user's home directory to the user and user group
-        chown ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
-        chown -R ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
     fi
 }
 
