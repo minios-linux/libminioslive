@@ -315,6 +315,18 @@ read_cmdline() {
     done
 }
 
+# Function to determine device name of a given directory
+get_device() {
+    local DEVICE=$(df "$1" | awk 'NR==2 {print $1}')
+    echo "${DEVICE}"
+}
+
+# Function to determine the device name of a given directory
+get_device_name() {
+    local DEVICE_NAME=$(df "$1" | awk 'NR==2 {print $1}' | awk -F/ '{print $NF}')
+    echo "${DEVICE_NAME}"
+}
+
 # Function to determine filesystem type of a given directory
 get_filesystem_type() {
     local DEVICE=$(df "$1" | awk 'NR==2 {print $1}')
@@ -388,58 +400,6 @@ user_setup() {
                 if [ ! -L "/home/${USER_NAME}/${DIR}" ]; then
                     echo "Creating symbolic link: /home/${USER_NAME}/${DIR} -> ${TARGET_DIR_PATH}"
                     ln -s "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
-                fi
-
-                DESKTOP_INI="${TARGET_DIR_PATH}/desktop.ini"
-                if [ ! -f "${DESKTOP_INI}" ]; then
-                    echo "Creating desktop.ini for ${DIR}"
-                    case "${DIR}" in
-                    "Desktop")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-183" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21798" >>"${DESKTOP_INI}"
-                        ;;
-                    "Documents")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-112" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-23509" >>"${DESKTOP_INI}"
-                        ;;
-                    "Downloads")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-184" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21796" >>"${DESKTOP_INI}"
-                        ;;
-                    "Music")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-108" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21790" >>"${DESKTOP_INI}"
-                        ;;
-                    "Pictures")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-113" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21779" >>"${DESKTOP_INI}"
-                        ;;
-                    "Public")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-104" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21792" >>"${DESKTOP_INI}"
-                        ;;
-                    "Templates")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-107" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21801" >>"${DESKTOP_INI}"
-                        ;;
-                    "Videos")
-                        echo "[.ShellClassInfo]" >"${DESKTOP_INI}"
-                        echo "IconResource=%SystemRoot%\\system32\\imageres.dll,-189" >>"${DESKTOP_INI}"
-                        echo "LocalizedResourceName=@%SystemRoot%\\system32\\shell32.dll,-21793" >>"${DESKTOP_INI}"
-                        ;;
-                    esac
-
-                    if [ "${FS_TYPE}" = "ntfs" ]; then
-                        echo "Setting attributes for desktop.ini on NTFS filesystem"
-                        attrib +h +s "${DESKTOP_INI}"
-                    fi
                 fi
             done
         else
