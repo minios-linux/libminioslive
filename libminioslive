@@ -399,7 +399,8 @@ user_setup() {
 
                 if [ ! -L "/home/${USER_NAME}/${DIR}" ]; then
                     echo "Creating symbolic link: /home/${USER_NAME}/${DIR} -> ${TARGET_DIR_PATH}"
-                    ln -s "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
+                    #ln -s "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
+                    mount --bind "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
                 fi
             done
         else
