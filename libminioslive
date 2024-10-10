@@ -354,95 +354,141 @@ user_setup() {
     local LINK_USER_DIRS="${3:-false}"
     local WRITABLE="${4:-false}"
 
-    local FS_TYPE=$(get_filesystem_type "${MEDIA}")
-    local TARGET_DIR=$(get_mount_point "${MEDIA}")
+    local FS_TYPE
+    local TARGET_DIR
+    local USER_ID
+    local GROUP_ID
 
-    echo "Setting up user: ${USER_NAME}"
-    echo "Target directory: ${TARGET_DIR}"
-    echo "Link user directories: ${LINK_USER_DIRS}"
-    echo "Writable target directories: ${WRITABLE}"
-    echo "Filesystem type: ${FS_TYPE}"
+    # Retrieve filesystem type and mount point
+    FS_TYPE=$(get_filesystem_type "${MEDIA}") || {
+        error "Unable to determine filesystem type for ${MEDIA}"
+        return 1
+    }
+    TARGET_DIR=$(get_mount_point "${MEDIA}") || {
+        error "Unable to determine mount point for ${MEDIA}"
+        return 1
+    }
 
+    information "Setting up user: ${USER_NAME}"
+    information "Target directory: ${TARGET_DIR}"
+    information "Link user directories: ${LINK_USER_DIRS}"
+    information "Writable target directories: ${WRITABLE}"
+    information "Filesystem type: ${FS_TYPE}"
+
+    # Check if the system is already configured
     if [ ! -f /var/.system_configured ]; then
-        echo "Creating new user ${USER_NAME}"
-        adduser --uid 1000 --gecos '' "${USER_NAME}" --disabled-password
+        information "Creating new user ${USER_NAME}"
+        adduser --uid 1000 --gecos '' "${USER_NAME}" --disabled-password || {
+            error "Failed to create user ${USER_NAME}"
+            return 1
+        }
     else
-        echo "System already configured, skipping user creation"
+        warning "System already configured, skipping user creation"
+        return
     fi
 
     USER_ID=$(id -u "${USER_NAME}")
     GROUP_ID=$(id -g "${USER_NAME}")
 
-    echo "Copying skeleton files to /home/${USER_NAME}"
+    information "Copying skeleton files to /home/${USER_NAME}"
     cp -rT /etc/skel "/home/${USER_NAME}"
 
     if [ -d "/home/${USER_NAME}" ]; then
         if [ "${LINK_USER_DIRS}" = "true" ] && [ "${WRITABLE}" = "true" ] && ([ "${FS_TYPE}" = "vfat" ] || [ "${FS_TYPE}" = "ntfs" ] || [ "${FS_TYPE}" = "exfat" ]); then
             chmod 777 "${TARGET_DIR}"
-            echo "Creating user directories without symbolic links"
+            information "Creating user directories without symbolic links"
             for DIR in Desktop Public Templates; do
                 TARGET_DIR_PATH="/home/${USER_NAME}/${DIR}"
 
                 if [ ! -d "${TARGET_DIR_PATH}" ]; then
-                    echo "Creating directory: ${TARGET_DIR_PATH}"
+                    information "Creating directory: ${TARGET_DIR_PATH}"
                     mkdir -p "${TARGET_DIR_PATH}"
                 fi
             done
-            echo "Linking user directories and ensuring writable target directories"
+            information "Linking user directories and ensuring writable target directories"
             for DIR in Documents Downloads Music Pictures Videos; do
                 TARGET_DIR_PATH="${TARGET_DIR}/${DIR}"
 
                 if [ ! -d "${TARGET_DIR_PATH}" ]; then
-                    echo "Creating target directory: ${TARGET_DIR_PATH}"
+                    information "Creating target directory: ${TARGET_DIR_PATH}"
                     mkdir -p "${TARGET_DIR_PATH}"
                 fi
 
                 if [ ! -L "/home/${USER_NAME}/${DIR}" ]; then
-                    echo "Creating symbolic link: /home/${USER_NAME}/${DIR} -> ${TARGET_DIR_PATH}"
+                    information "Creating symbolic link: /home/${USER_NAME}/${DIR} -> ${TARGET_DIR_PATH}"
                     #ln -s "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
                     mount --bind "${TARGET_DIR_PATH}" "/home/${USER_NAME}/${DIR}"
                 fi
             done
         else
-            echo "Creating user directories without symbolic links"
+            information "Creating user directories without symbolic links"
             for DIR in Desktop Documents Downloads Music Pictures Public Templates Videos; do
                 TARGET_DIR_PATH="/home/${USER_NAME}/${DIR}"
 
                 if [ ! -d "${TARGET_DIR_PATH}" ]; then
-                    echo "Creating directory: ${TARGET_DIR_PATH}"
+                    information "Creating directory: ${TARGET_DIR_PATH}"
                     mkdir -p "${TARGET_DIR_PATH}"
                 fi
             done
         fi
 
         if [ ! -d "/home/${USER_NAME}/.ssh" ]; then
-            echo "Creating .ssh directory"
+            information "Creating .ssh directory"
             mkdir "/home/${USER_NAME}/.ssh"
             chmod 700 "/home/${USER_NAME}/.ssh"
         fi
 
         if [ -f /root/.ssh/authorized_keys ]; then
-            echo "Copying authorized_keys to user's .ssh directory"
+            information "Copying authorized_keys to user's .ssh directory"
             cp /root/.ssh/authorized_keys "/home/${USER_NAME}/.ssh/authorized_keys"
         fi
 
-        echo "Setting ownership for /home/${USER_NAME}"
+        information "Setting ownership for /home/${USER_NAME}"
         chown ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
-        echo "Setting ownership recursively for /home/${USER_NAME}"
+        information "Setting ownership recursively for /home/${USER_NAME}"
         chown -R ${USER_ID}:${GROUP_ID} "/home/${USER_NAME}"
+    else
+        error "Failed to find home directory for user ${USER_NAME}"
+        return 1
     fi
 }
 
 # This function allows changing the username and user group. It is useful when the username needs to be changed without affecting the user's files.
 change_user() {
-    local USER_NAME=$1                                                                     # Assign the first argument to local variable USER_NAME
-    local USER_GROUP="${USER_NAME}"                                                        # Assign the username to local variable USER_GROUP
-    local CURRENT_USER_NAME=$2                                                             # Assign the second argument to local variable CURRENT_USER_NAME
-    local CURRENT_USER_GROUP=$3                                                            # Assign the third argument to local variable CURRENT_USER_GROUP
-    if [ -n "${CURRENT_USER_NAME}" ] && [ "${USER_NAME}" != "${CURRENT_USER_NAME}" ]; then # If the current username is not empty and different from the new username
-        usermod -l "${USER_NAME}" "${CURRENT_USER_NAME}"                                   # Change the username
-        usermod -m -d "/home/${USER_NAME}" "${USER_NAME}"                                  # Move the user's home directory to the new location
-        groupmod -n "${USER_GROUP}" "${CURRENT_USER_GROUP}"                                # Change the user group name
+    local USER_NAME="$1"
+    local USER_GROUP="${USER_NAME}"
+    local CURRENT_USER_NAME="$2"
+    local CURRENT_USER_GROUP="$3"
+
+    # Check if the current username is not empty and different from the new username
+    if [ -n "${CURRENT_USER_NAME}" ] && [ "${USER_NAME}" != "${CURRENT_USER_NAME}" ]; then
+        information "Changing user from ${CURRENT_USER_NAME} to ${USER_NAME}"
+
+        # Change the username
+        if usermod -l "${USER_NAME}" "${CURRENT_USER_NAME}"; then
+            information "Username changed from ${CURRENT_USER_NAME} to ${USER_NAME}"
+        else
+            error "Failed to change username from ${CURRENT_USER_NAME} to ${USER_NAME}"
+            return 1
+        fi
+
+        # Move the user's home directory to the new location
+        if usermod -m -d "/home/${USER_NAME}" "${USER_NAME}"; then
+            information "Home directory moved to /home/${USER_NAME}"
+        else
+            error "Failed to move home directory for ${USER_NAME}"
+            return 1
+        fi
+
+        # Change the user group name
+        if groupmod -n "${USER_GROUP}" "${CURRENT_USER_GROUP}"; then
+            information "User group changed from ${CURRENT_USER_GROUP} to ${USER_GROUP}"
+        else
+            error "Failed to change user group from ${CURRENT_USER_GROUP} to ${USER_GROUP}"
+            return 1
+        fi
+    else
+        warning "No change needed: either the current user is the same or the current username is empty."
     fi
 }
 
@@ -521,19 +567,31 @@ toggle_shell_options() {
 # Display an error message.
 error() {
     local MESSAGE="${1-}"
-    echo -e "${BOLD}${RED}E:${ENDCOLOR} ${MESSAGE}" >&2
+    if [ "$OUTPUT_MODE" = "console" ]; then
+        echo -e "${BOLD}${RED}E:${ENDCOLOR} $MESSAGE" >&2
+    else
+        echo "E: $MESSAGE" >&2
+    fi
 }
 
 # Display a warning message.
 warning() {
     local MESSAGE="${1-}"
-    echo -e "${BOLD}${YELLOW}W:${ENDCOLOR} ${MESSAGE}"
+    if [ "$OUTPUT_MODE" = "console" ]; then
+        echo -e "${BOLD}${YELLOW}W:${ENDCOLOR} $MESSAGE"
+    else
+        echo "W: $MESSAGE"
+    fi
 }
 
 # Display an information message.
 information() {
     local MESSAGE="${1-}"
-    echo -e "${BOLD}${BLUE}I:${ENDCOLOR} ${MESSAGE}"
+    if [ "$OUTPUT_MODE" = "console" ]; then
+        echo -e "${BOLD}${BLUE}I:${ENDCOLOR} $MESSAGE"
+    else
+        echo "I: $MESSAGE"
+    fi
 }
 
 declare_locales() {
@@ -555,6 +613,20 @@ declare_locales() {
         ["pt_BR"]="br,Portuguese (Brazil),pt-br,pt,pt-br,br"
         ["ru_RU"]="ru,Russian,ru,ru,ru,ru"
     )
+}
+
+# Function to check if the system is running on any virtual machine
+is_virtual() {
+    local VM_TYPE="${1:-VirtualBox|VMware|KVM|QEMU|Xen|Hyper-V}"
+    if grep -qE "$VM_TYPE" /sys/class/dmi/id/product_name 2>/dev/null; then
+        return 0
+    elif grep -qE "$VM_TYPE" /sys/class/dmi/id/product_version 2>/dev/null; then
+        return 0
+    elif [[ "$VM_TYPE" == "Hyper-V" && -d /sys/hypervisor ]]; then
+        return 0
+    else
+        return 1
+    fi
 }
 
 #------- LIBMINIOSLIVE -------
