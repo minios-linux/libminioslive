@@ -128,11 +128,8 @@ read_config() {
 #   VAR1, VAR2, etc - the names of variables you wish to update in the configuration file.
 #   If variable names are not provided, the function will update all variables found in the file.
 update_config() {
-    # The configuration file is passed as the first argument
     local CONFIG_FILE="${1}"
     shift
-
-    # Check if the configuration file is set, exists and is readable.
     if [[ ! "$CONFIG_FILE" ]]; then
         error "No configuration file given"
         exit 1
@@ -145,31 +142,20 @@ update_config() {
         error "${CONFIG_FILE} is not readable!"
         exit 1
     fi
-
     local -a ARGS
-
     if (($# > 0)); then
-        # Use provided variable names
         ARGS=("$@")
     else
-        # Extract variable names from the config file
         ARGS=($(grep -v '^#' "${CONFIG_FILE}" | awk -F '=' '{print $1}'))
     fi
-
-    # Iterate over every variable
     for ARG in "${ARGS[@]}"; do
         local -n VAR="${ARG}"
         local NEW_VALUE ELEMENT
-
-        # If the variable is empty, continue to next
-        if [[ -z "${VAR[@]}" ]]; then
+        if [[ -z "${VAR+x}" ]]; then
             continue
         fi
-
-        # Check if the variable is an array or a simple variable
         case "$(declare -p "${ARG}" 2>/dev/null)" in
         "declare -a"*)
-            # If it's an array, construct the new value as an array
             NEW_VALUE="${ARG}=("
             for ELEMENT in "${VAR[@]}"; do
                 NEW_VALUE+="\"${ELEMENT}\""
@@ -178,25 +164,15 @@ update_config() {
             NEW_VALUE+=")"
             ;;
         *)
-            # If it's a simple variable, construct the new value as a string
             NEW_VALUE="${ARG}=\"${VAR}\""
             ;;
         esac
-
-        # If the variable already exists in the configuration file, replace the old value with the new one
         if grep -q "^${ARG}=" "${CONFIG_FILE}"; then
             sed -i "s|^${ARG}=.*|${NEW_VALUE}|" "${CONFIG_FILE}"
         else
-            # If the variable does not exist, append the variable and its value to the end of the configuration file
             echo -e "\n${NEW_VALUE}" >>"${CONFIG_FILE}"
         fi
     done
-
-    # Remove empty lines from the configuration file
-    #sed -i '/^$/d' "${CONFIG_FILE}"
-
-    # Sort the lines in the configuration file in alphabetical order
-    #sort -o "${CONFIG_FILE}" "${CONFIG_FILE}"
 }
 
 # A function to read a specific value from a configuration file in Bash.
@@ -617,14 +593,45 @@ declare_locales() {
 
 # Function to check if the system is running on any virtual machine
 is_virtual() {
-    local VM_TYPE="${1:-VirtualBox|VMware|KVM|QEMU|Xen|Hyper-V}"
-    if grep -qE "$VM_TYPE" /sys/class/dmi/id/product_name 2>/dev/null; then
-        return 0
-    elif grep -qE "$VM_TYPE" /sys/class/dmi/id/product_version 2>/dev/null; then
-        return 0
-    elif [[ "$VM_TYPE" == "Hyper-V" && -d /sys/hypervisor ]]; then
-        return 0
+    local VM_TYPE="$1"
+    if [[ -z "$VM_TYPE" ]]; then
+        if grep -qEi "(VirtualBox|VMware|KVM|QEMU|Xen|microsoft corporation|Bochs)" /sys/class/dmi/id/product_name 2>/dev/null || grep -qEi "(Oracle|microsoft corporation|Bochs)" /sys/class/dmi/id/sys_vendor 2>/dev/null; then
+            return 0
+        else
+            return 1
+        fi
     else
+        case "$VM_TYPE" in
+        VirtualBox)
+            if grep -qEi "VirtualBox" /sys/class/dmi/id/product_name 2>/dev/null || grep -qEi "Oracle" /sys/class/dmi/id/sys_vendor 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        VMware)
+            if grep -qEi "VMware" /sys/class/dmi/id/product_name 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        KVM | QEMU)
+            if grep -qEi "(KVM|QEMU)" /sys/class/dmi/id/product_name 2>/dev/null || grep -qEi "Bochs" /sys/class/dmi/id/sys_vendor 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        Xen)
+            if grep -qEi "Xen" /sys/class/dmi/id/product_name 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        Hyper-V)
+            if grep -qEi "microsoft corporation" /sys/class/dmi/id/sys_vendor 2>/dev/null && grep -qEi "virtual machine" /sys/class/dmi/id/product_name 2>/dev/null; then
+                return 0
+            fi
+            ;;
+        *)
+            echo "Usage: is_virtual [VirtualBox|VMware|KVM|QEMU|Xen|Hyper-V]" >&2
+            return 1
+            ;;
+        esac
         return 1
     fi
 }
