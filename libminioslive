@@ -213,95 +213,30 @@ read_config_value() {
 # Usage:
 #   read_cmdline /proc/cmdline
 read_cmdline() {
-    for i in "${@}"; do
+    for i in "$@"; do
         case $i in
-        user_name=*)
-            USER_NAME="${i#*=}"
-            shift
-            ;;
-        user_password=*)
-            USER_PASSWORD="${i#*=}"
-            shift
-            ;;
-        root_password=*)
-            ROOT_PASSWORD="${i#*=}"
-            shift
-            ;;
-        host_name=*)
-            HOST_NAME="${i#*=}"
-            shift
-            ;;
-        default_target=*)
-            DEFAULT_TARGET="${i#*=}"
-            shift
-            ;;
-        text)
-            TEXT_MODE="true"
-            shift
-            ;;
-        enable_services=*)
-            ENABLE_SERVICES="${i#*=}"
-            shift
-            ;;
-        disable_services=*)
-            DISABLE_SERVICES="${i#*=}"
-            shift
-            ;;
-        ssh_key=*)
-            SSH_KEY="${i#*=}"
-            shift
-            ;;
-        ${LIVEKITNAME}.flags=*)
-            FLAGS="${i#*=}"
-            shift
-            ;;
-        slax.flags=*)
-            SFLAGS="${i#*=}"
-            shift
-            ;;
-        toram)
-            TORAM="true"
-            shift
-            ;;
-        perchdir=*)
-            PERCHDIR="${i#*=}"
-            shift
-            ;;
-        scripts=*)
-            SCRIPTS="${i#*=}"
-            shift
-            ;;
-        cloud)
-            CLOUD="true"
-            shift
-            ;;
-        hide_credentials)
-            HIDE_CREDENTIALS="true"
-            shift
-            ;;
-        static_profiles)
-            STATIC_PROFILES="true"
-            shift
-            ;;
-        autologin)
-            AUTOLOGIN="true"
-            shift
-            ;;
-        link_user_dirs)
-            LINK_USER_DIRS="true"
-            shift
-            ;;
-        system_type=*)
-            SYSTEM_TYPE="${i#*=}"
-            shift
-            ;;
-        from=*)
-            FROM="${i#*=}"
-            shift
-            ;;
-        *)
-            UNKNOWN="true"
-            ;;
+        user_name=*) USER_NAME="${i#*=}" ;;
+        user_password=*) USER_PASSWORD="${i#*=}" ;;
+        root_password=*) ROOT_PASSWORD="${i#*=}" ;;
+        host_name=*) HOST_NAME="${i#*=}" ;;
+        default_target=*) DEFAULT_TARGET="${i#*=}" ;;
+        text) TEXT_MODE="true" ;;
+        enable_services=*) ENABLE_SERVICES="${i#*=}" ;;
+        disable_services=*) DISABLE_SERVICES="${i#*=}" ;;
+        ssh_key=*) SSH_KEY="${i#*=}" ;;
+        minios.flags=*) FLAGS="${i#*=}" ;;
+        slax.flags=*) SFLAGS="${i#*=}" ;;
+        toram) TORAM="true" ;;
+        perchdir=*) PERCHDIR="${i#*=}" ;;
+        scripts=*) SCRIPTS="${i#*=}" ;;
+        cloud) CLOUD="true" ;;
+        hide_credentials) HIDE_CREDENTIALS="true" ;;
+        static_profiles) STATIC_PROFILES="true" ;;
+        autologin) AUTOLOGIN="true" ;;
+        link_user_dirs) LINK_USER_DIRS="true" ;;
+        system_type=*) SYSTEM_TYPE="${i#*=}" ;;
+        from=*) FROM="${i#*=}" ;;
+        *) UNKNOWN="true" ;;
         esac
     done
 }
