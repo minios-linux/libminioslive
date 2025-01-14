@@ -215,10 +215,10 @@ read_config_value() {
 read_cmdline() {
     for i in "$@"; do
         case $i in
-        user_name=*) USER_NAME="${i#*=}" ;;
-        user_password=*) USER_PASSWORD="${i#*=}" ;;
-        root_password=*) ROOT_PASSWORD="${i#*=}" ;;
-        host_name=*) HOST_NAME="${i#*=}" ;;
+        user_name=* | username=*) USER_NAME="${i#*=}" ;;
+        user_password=* | userpass=*) USER_PASSWORD="${i#*=}" ;;
+        root_password=* | rootpass=*) ROOT_PASSWORD="${i#*=}" ;;
+        host_name=* | hostname=*) HOST_NAME="${i#*=}" ;;
         default_target=*) DEFAULT_TARGET="${i#*=}" ;;
         text) TEXT_MODE="true" ;;
         enable_services=*) ENABLE_SERVICES="${i#*=}" ;;
@@ -227,7 +227,11 @@ read_cmdline() {
         minios.flags=*) FLAGS="${i#*=}" ;;
         slax.flags=*) SFLAGS="${i#*=}" ;;
         toram) TORAM="true" ;;
+        toram_trim) TORAM_TRIM="true" ;;
+        toram_trim_load=*) TORAM_TRIM_LOAD="${i#*=}" ;;
+        toram_trim_noload=*) TORAM_TRIM_NOLOAD="${i#*=}" ;;
         perchdir=*) PERCHDIR="${i#*=}" ;;
+        perchmode=*) PERCHMODE="${i#*=}" ;;
         scripts=*) SCRIPTS="${i#*=}" ;;
         cloud) CLOUD="true" ;;
         hide_credentials) HIDE_CREDENTIALS="true" ;;

@@ -1,3 +1,9 @@
+libminioslive (4.2) unstable; urgency=medium
+
+  * Improved read_cmdline function
+
+ -- crims0n <crims0n@minios.dev>  Tue, 14 Jan 2025 13:31:20 +0300
+
 libminioslive (4.1) unstable; urgency=medium
 
   * Improved read_cmdline function
