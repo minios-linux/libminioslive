@@ -240,6 +240,12 @@ read_cmdline() {
         link_user_dirs) LINK_USER_DIRS="true" ;;
         system_type=*) SYSTEM_TYPE="${i#*=}" ;;
         from=*) FROM="${i#*=}" ;;
+        locales=*) LOCALES="${i#*=}" ;;
+        timezone=*) TIMEZONE="${i#*=}" ;;
+        keyboard-layouts=*) KEYBOARD_LAYOUTS="${i#*=}" ;;
+        keyboard-model=*) KEYBOARD_MODEL="${i#*=}" ;;
+        keyboard-options=*) KEYBOARD_OPTIONS="${i#*=}" ;;
+        keyboard-variants=*) KEYBOARD_VARIANTS="${i#*=}" ;;
         *) UNKNOWN="true" ;;
         esac
     done
